@@ -12,6 +12,14 @@ import { assessPolicy } from '../../../src/risk';
 export const revalidate = 0;
 
 export async function GET(req: NextRequest) {
+  // Lightweight liveness checks (do not require url)
+  if (req.nextUrl.searchParams.get('ping') === '1') {
+    return NextResponse.json({ ok: true, message: 'csp route alive', ts: Date.now() });
+  }
+  if (req.nextUrl.searchParams.get('health') === '1') {
+    // Avoid importing package.json at top-level for edge safety; inline minimal data
+    return NextResponse.json({ ok: true, service: 'autocsp', version: '0.1.0', ts: Date.now() });
+  }
   const url = req.nextUrl.searchParams.get('url');
   if (!url) {
     return NextResponse.json({ error: 'Missing url param' }, { status: 400 });
@@ -25,9 +33,6 @@ export async function GET(req: NextRequest) {
   const depth = depthParam ? Math.min(3, Math.max(0, parseInt(depthParam, 10) || 0)) : 0; // cap depth to 3
   const trace: any[] = [];
   function mark(step: string, extra: any = {}) { if (debug) trace.push({ step, ts: Date.now(), ...extra }); }
-  if (req.nextUrl.searchParams.get('ping') === '1') {
-    return NextResponse.json({ ok: true, message: 'csp route alive', ts: Date.now() });
-  }
   try {
   mark('fetch:start', { url, timeoutMs });
   let page; try { page = await fetchPage(url, timeoutMs, { maxRetries: 2 }); } catch (fetchErr: any) {
