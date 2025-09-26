@@ -1,0 +1,43 @@
+{
+  "name": "autocsp",
+  "version": "0.1.0",
+  "private": false,
+  "description": "Generate baseline & strict Content-Security-Policy from a live URL (hashing inline scripts/styles)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/your-user/autocsp.git"
+  },
+  "homepage": "https://github.com/your-user/autocsp#readme",
+  "bugs": {
+    "url": "https://github.com/your-user/autocsp/issues"
+  },
+  "type": "module",
+  "bin": {
+    "autocsp": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "next build && tsc -p .",
+    "dev": "next dev",
+    "dev:cli": "tsx src/cli.ts",
+    "test": "tsx src/tests/run.ts"
+  },
+  "dependencies": {
+    "next": "^14.2.5",
+    "parse5": "^7.1.2",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "playwright": "^1.47.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/react": "^18.2.21",
+    "@types/react-dom": "^18.2.8",
+    "typescript": "^5.4.0",
+    "tsx": "^4.7.0",
+    "tailwindcss": "^3.4.9",
+    "postcss": "^8.4.38",
+    "autoprefixer": "^10.4.19"
+  },
+  "engines": { "node": ">=18.0.0" }
+}
