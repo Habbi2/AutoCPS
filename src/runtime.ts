@@ -4,6 +4,10 @@ export interface RuntimeOptions { timeoutMs?: number; waitUntil?: 'load' | 'domc
 
 export async function collectRuntimeResources(url: string, opts: RuntimeOptions = {}): Promise<CollectedResources> {
   // Dynamic import so build does not require playwright present
+  if (!process.env.PLAYWRIGHT_ENABLED) {
+    // Runtime disabled by env, return empty collection baseline
+    return collectResources('', url);
+  }
   let chromium: any;
   try {
     // Obfuscate import path so bundler doesn't eagerly include playwright in serverless function
