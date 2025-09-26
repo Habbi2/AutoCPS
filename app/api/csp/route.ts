@@ -12,6 +12,7 @@ export async function GET(req: NextRequest) {
   if (!url) {
     return NextResponse.json({ error: 'Missing url param' }, { status: 400 });
   }
+  const debug = req.nextUrl.searchParams.get('debug') === '1';
   const strictQuery = req.nextUrl.searchParams.get('strict') === 'true';
   const runtime = req.nextUrl.searchParams.get('runtime') === 'true';
   const depthParam = req.nextUrl.searchParams.get('depth');
@@ -80,7 +81,8 @@ export async function GET(req: NextRequest) {
       }
     });
   } catch (e: any) {
-    return NextResponse.json({ error: e.message || 'Failed' }, { status: 500 });
+    const meta = normalizeError(e);
+    return NextResponse.json({ error: meta.message, kind: meta.kind, detail: debug ? meta : undefined }, { status: 500 });
   }
 }
 
@@ -137,4 +139,16 @@ function summarizeDirectives(directives: Record<string,string[]>) {
     out[name] = { sources: list.length, hashes, origins, wildcards };
   }
   return out;
+}
+
+function normalizeError(e: any) {
+  const kind = e?.meta?.type || (e?.name === 'AbortError' ? 'timeout' : 'unknown');
+  return {
+    kind,
+    message: e?.message || 'Internal error',
+    stack: e?.stack,
+    meta: e?.meta,
+    originalName: e?.name,
+    causeMessage: e?.cause?.message
+  };
 }
