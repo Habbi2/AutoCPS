@@ -1,26 +1,39 @@
-autocsp <url> [--strict] [--runtime] [--json]
-<img width="96" src="app/icon.svg" alt="AutoCSP" />
+<p align="center">
+	<img width="100" src="app/icon.svg" alt="AutoCSP logo" />
+</p>
 
-# AutoCSP (Early Preview)
+# AutoCSP
 
-Generate, compare, and refine strong Content-Security-Policy headers for any public URL. AutoCSP discovers required sources (static + optional runtime + multi‑page crawl), hashes inline code, and provides risk & directive analytics so you can confidently deploy a locked‑down CSP.
+> From permissive → locked‑down CSP (baseline + strict) in minutes. [Live Demo](https://auto-cps.vercel.app) · [Repo](https://github.com/Habbi2/AutoCPS)
 
-## Why
-Hand-authoring robust CSPs is tedious. Teams either ship nothing, stay stuck in report-only forever, or copy permissive templates. AutoCSP automates discovery and presents a dual-policy (Baseline vs Strict) workflow so you can iterate toward maximal protection with clear diffs and quantified risk.
+<!-- Badges (add real ones once available) -->
+![Stars](https://img.shields.io/github/stars/Habbi2/AutoCPS?style=flat-square) ![License](https://img.shields.io/badge/License-MIT-blue?style=flat-square) ![Status](https://img.shields.io/badge/status-early_preview-orange?style=flat-square)
+
+AutoCSP generates, compares, and refines production‑ready Content-Security-Policy headers for any public URL. It discovers required sources (static + optional runtime + multi‑page crawl), hashes inline code, and surfaces risk & directive analytics so you can confidently ship a hardened policy.
+
+## TL;DR / Why
+Manual CSP hardening is slow: teams copy templates, stay stuck in `report-only`, or allow everything. AutoCSP automates discovery and offers a dual-policy workflow (Baseline vs Strict) so you can iteratively tighten without guesswork.
+
+| You Have | AutoCSP Gives |
+|----------|---------------|
+| Loose `default-src *` or copy‑paste policy | Minimal baseline + hash‑focused strict candidate |
+| Inline script/style sprawl | SHA-256 hashing & ratios |
+| Unknown risks | Heuristic risk score + issue list |
+| Slow iteration | Immediate diff between existing / baseline / strict |
 
 ## Feature Highlights
-Core
+### Core
 - Dual Baseline & Strict policy generation (strict = self + hashes for script/style)
 - Detection & diff against any existing CSP
 - Inline script & style SHA-256 hashing
 - Opinionated hardening: `object-src 'none'; frame-ancestors 'none'; base-uri 'self'; upgrade-insecure-requests`
 
-Discovery
+### Discovery
 - Static HTML + attribute / tag scanning
 - (Optional) Runtime resource capture via Playwright (dynamic scripts, injected tags)
 - Multi-page crawl (BFS) with configurable depth to union resources
 
-Analytics & Insight
+### Analytics & Insight
 - Directive-by-directive stats (counts, origin breakdown, hash ratios)
 - Risk scoring heuristics (level + issues list) for each policy mode
 - Risk deltas (Baseline → Strict) visualization
@@ -28,28 +41,38 @@ Analytics & Insight
 - Hide/filter directives in the UI
 - Hash presence + external origin ratios
 
-Exports & Integration
+### Exports & Integration
 - Copyable headers & diffs
 - Multi-environment deployment snippets: Helmet (Express), nginx, Apache, Cloudflare, HTML meta tag
 - JSON & CSV export (directive metrics)
 - Policy selection for snippet generation (choose baseline or strict)
 - LocalStorage persistence of last scan + UI state
 
-Other
+### Other
 - Additional security headers suggestions (Referrer-Policy, Permissions-Policy)
 - Graceful runtime fallback if Playwright isn’t installed
 - About page & lightweight theming
 
-## Quick Start (Web UI)
+## Quick Start
+
+### Web UI
 ```bash
+git clone https://github.com/Habbi2/AutoCPS
+cd AutoCPS
 npm install
 npm run dev
-# Open http://localhost:3000
 ```
-Enter a target URL, optionally enable Strict, Runtime, and choose a Crawl Depth (e.g. 2) to aggregate subpages. Explore diffs, analytics panels, risk scores, and export snippets.
+Visit http://localhost:3000 then enter a target URL. Toggle Strict / Runtime / Crawl Depth (e.g. 2) and compare:
 
-## CLI Usage
-The repository ships with a CLI (experimental).
+Baseline ↔ Strict ↔ Existing (if present).
+
+### Fast Example
+```
+autocsp https://example.com --strict --json > report.json
+```
+`report.json` now contains baseline+strict+diff+metrics for further automation.
+
+## CLI Usage (Experimental)
 ```bash
 npx ts-node src/cli.ts <url> [--strict] [--runtime] [--depth <n>] [--json]
 ```
@@ -146,6 +169,9 @@ Issues & ideas welcome. Open a discussion or PR—this is an early preview.
 
 ## License
 MIT
+
+## Social / Preview Assets
+Planned OG image: side‑by‑side Baseline vs Strict diff with risk delta badge. (Add `/api/og` endpoint or static `/public/og.png`.)
 
 ## Acknowledgements
 Built by Habbi Web Design. Feedback appreciated.
