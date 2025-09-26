@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 // Force Node.js runtime (some functionality like crypto + unrestricted fetch may fail on edge)
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 import { fetchPage } from '../../../src/fetch';
 import { collectResources } from '../../../src/collect';
 import { buildCSP } from '../../../src/builder';
@@ -17,11 +18,13 @@ export async function GET(req: NextRequest) {
   }
   const debug = req.nextUrl.searchParams.get('debug') === '1';
   const strictQuery = req.nextUrl.searchParams.get('strict') === 'true';
+  const timeoutParam = req.nextUrl.searchParams.get('timeout');
+  const timeoutMs = timeoutParam ? Math.min(45000, Math.max(3000, parseInt(timeoutParam, 10) || 15000)) : 15000;
   const runtime = req.nextUrl.searchParams.get('runtime') === 'true';
   const depthParam = req.nextUrl.searchParams.get('depth');
   const depth = depthParam ? Math.min(3, Math.max(0, parseInt(depthParam, 10) || 0)) : 0; // cap depth to 3
   try {
-    const page = await fetchPage(url);
+  const page = await fetchPage(url, timeoutMs, { maxRetries: 2 });
     let resources = collectResources(page.html, page.finalUrl);
     let runtimeStatus: 'disabled' | 'ok' | 'unavailable' = 'disabled';
     if (runtime) {
@@ -86,7 +89,7 @@ export async function GET(req: NextRequest) {
   } catch (e: any) {
     const meta = normalizeError(e);
     return new NextResponse(
-      JSON.stringify({ error: meta.message, kind: meta.kind, detail: debug ? meta : undefined }),
+      JSON.stringify({ error: meta.message, kind: meta.kind, detail: debug ? meta : undefined, upstream: meta.meta?.status, attempt: meta.meta?.attempt, retries: meta.meta?.retries }),
       {
         status: 500,
         headers: {
