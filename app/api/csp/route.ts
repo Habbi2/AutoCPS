@@ -20,18 +20,25 @@ export async function GET(req: NextRequest) {
   const strictQuery = req.nextUrl.searchParams.get('strict') === 'true';
   const timeoutParam = req.nextUrl.searchParams.get('timeout');
   const timeoutMs = timeoutParam ? Math.min(45000, Math.max(3000, parseInt(timeoutParam, 10) || 15000)) : 15000;
-  const runtime = req.nextUrl.searchParams.get('runtime') === 'true';
+  const useRuntime = req.nextUrl.searchParams.get('runtime') === 'true';
   const depthParam = req.nextUrl.searchParams.get('depth');
   const depth = depthParam ? Math.min(3, Math.max(0, parseInt(depthParam, 10) || 0)) : 0; // cap depth to 3
   const trace: any[] = [];
   function mark(step: string, extra: any = {}) { if (debug) trace.push({ step, ts: Date.now(), ...extra }); }
+  if (req.nextUrl.searchParams.get('ping') === '1') {
+    return NextResponse.json({ ok: true, message: 'csp route alive', ts: Date.now() });
+  }
   try {
   mark('fetch:start', { url, timeoutMs });
-  const page = await fetchPage(url, timeoutMs, { maxRetries: 2 });
+  let page; try { page = await fetchPage(url, timeoutMs, { maxRetries: 2 }); } catch (fetchErr: any) {
+    const meta = normalizeError(fetchErr);
+    const soft: any = { error: meta.message, kind: meta.kind, phase: 'fetch', url, timeoutMs, detail: debug ? meta : undefined, trace };
+    return new NextResponse(JSON.stringify(soft), { status: 502, headers: { 'Content-Type': 'application/json', 'x-autocsp-error-kind': meta.kind || 'unknown' } });
+  }
   mark('fetch:done', { status: page.status, finalUrl: page.finalUrl, size: page.html.length });
     let resources = collectResources(page.html, page.finalUrl);
     let runtimeStatus: 'disabled' | 'ok' | 'unavailable' = 'disabled';
-    if (runtime) {
+  if (useRuntime) {
       try {
         mark('runtime:start');
         const mod = await import('../../../src/runtime');
@@ -80,7 +87,7 @@ export async function GET(req: NextRequest) {
   baseline: { policy: baseline.policy, notes: baseline.notes, diffExisting: baseline.diff },
   strict: { policy: strict.policy, notes: strict.notes, diffExisting: strict.diff },
   activeMode: strictQuery ? 'strict' : 'baseline',
-  runtime: runtime ? true : false,
+  runtime: useRuntime ? true : false,
       runtimeStatus,
       crawl: { depth, pages: crawledPages, count: crawledPages.length },
       diffModes,
