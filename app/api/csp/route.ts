@@ -23,23 +23,31 @@ export async function GET(req: NextRequest) {
   const runtime = req.nextUrl.searchParams.get('runtime') === 'true';
   const depthParam = req.nextUrl.searchParams.get('depth');
   const depth = depthParam ? Math.min(3, Math.max(0, parseInt(depthParam, 10) || 0)) : 0; // cap depth to 3
+  const trace: any[] = [];
+  function mark(step: string, extra: any = {}) { if (debug) trace.push({ step, ts: Date.now(), ...extra }); }
   try {
+  mark('fetch:start', { url, timeoutMs });
   const page = await fetchPage(url, timeoutMs, { maxRetries: 2 });
+  mark('fetch:done', { status: page.status, finalUrl: page.finalUrl, size: page.html.length });
     let resources = collectResources(page.html, page.finalUrl);
     let runtimeStatus: 'disabled' | 'ok' | 'unavailable' = 'disabled';
     if (runtime) {
       try {
+        mark('runtime:start');
         const mod = await import('../../../src/runtime');
         resources = await mod.collectRuntimeResources(page.finalUrl, { waitUntil: 'networkidle' });
         runtimeStatus = 'ok';
+        mark('runtime:ok');
       } catch (e: any) {
         // playwright not available or runtime failure; continue with static resources
         runtimeStatus = 'unavailable';
+        mark('runtime:fail', { message: e?.message });
       }
     }
     let crawledPages: string[] = [page.finalUrl];
     if (depth > 0) {
       try {
+        mark('crawl:start', { depth });
         const crawlRes = await crawl(page.finalUrl, { depth, sameOriginOnly: true });
         crawledPages = crawlRes.pages;
         // merge crawl resources
@@ -64,7 +72,7 @@ export async function GET(req: NextRequest) {
   const riskActive = stringifyRisk(assessPolicy(active.policy));
   const riskBaseline = stringifyRisk(assessPolicy(baseline.policy));
   const riskStrict = stringifyRisk(assessPolicy(strict.policy));
-    return NextResponse.json({
+    const responseBody: any = {
       input: url,
       finalUrl: page.finalUrl,
       status: page.status,
@@ -81,15 +89,28 @@ export async function GET(req: NextRequest) {
       notes: active.notes,
       risk: { active: riskActive, baseline: riskBaseline, strict: riskStrict },
       summaries: { baseline: summaryBaseline, strict: summaryStrict }
-    }, {
+    };
+    if (debug) responseBody.trace = trace;
+    return NextResponse.json(responseBody, {
       headers: {
         'Cache-Control': 'public, max-age=0, s-maxage=300'
       }
     });
   } catch (e: any) {
     const meta = normalizeError(e);
+    const soft: any = {
+      error: meta.message,
+      kind: meta.kind,
+      detail: debug ? meta : undefined,
+      upstream: meta.meta?.status,
+      attempt: meta.meta?.attempt,
+      retries: meta.meta?.retries,
+      url,
+      timeoutMs
+    };
+    if (debug) soft.trace = trace;
     return new NextResponse(
-      JSON.stringify({ error: meta.message, kind: meta.kind, detail: debug ? meta : undefined, upstream: meta.meta?.status, attempt: meta.meta?.attempt, retries: meta.meta?.retries }),
+      JSON.stringify(soft),
       {
         status: 500,
         headers: {
