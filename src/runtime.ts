@@ -6,11 +6,12 @@ export async function collectRuntimeResources(url: string, opts: RuntimeOptions 
   // Dynamic import so build does not require playwright present
   let chromium: any;
   try {
+    // Obfuscate import path so bundler doesn't eagerly include playwright in serverless function
+    const pkg = 'playwright';
     // eslint-disable-next-line @typescript-eslint/no-var-requires
-    chromium = (await import('playwright')).chromium;
-  } catch {
-    // Playwright not installed - fall back to static only
-    return collectResources('', url); // returns mostly empty set
+    chromium = (await import(/* @vite-ignore */ pkg)).chromium;
+  } catch (e) {
+    return collectResources('', url); // playwright unavailable
   }
 
   const timeout = opts.timeoutMs ?? 15000;
