@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+
+// Force Node.js runtime (some functionality like crypto + unrestricted fetch may fail on edge)
+export const runtime = 'nodejs';
 import { fetchPage } from '../../../src/fetch';
 import { collectResources } from '../../../src/collect';
 import { buildCSP } from '../../../src/builder';
@@ -82,7 +85,16 @@ export async function GET(req: NextRequest) {
     });
   } catch (e: any) {
     const meta = normalizeError(e);
-    return NextResponse.json({ error: meta.message, kind: meta.kind, detail: debug ? meta : undefined }, { status: 500 });
+    return new NextResponse(
+      JSON.stringify({ error: meta.message, kind: meta.kind, detail: debug ? meta : undefined }),
+      {
+        status: 500,
+        headers: {
+          'Content-Type': 'application/json',
+          'x-autocsp-error-kind': meta.kind || 'unknown'
+        }
+      }
+    );
   }
 }
 
