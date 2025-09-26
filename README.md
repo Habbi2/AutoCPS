@@ -1,88 +1,151 @@
+autocsp <url> [--strict] [--runtime] [--json]
+<img width="96" src="app/icon.svg" alt="AutoCSP" />
+
 # AutoCSP (Early Preview)
 
-Generate a sensible Content-Security-Policy for any public URL.
+Generate, compare, and refine strong Content-Security-Policy headers for any public URL. AutoCSP discovers required sources (static + optional runtime + multi‑page crawl), hashes inline code, and provides risk & directive analytics so you can confidently deploy a locked‑down CSP.
 
 ## Why
-Hand-authoring CSPs is tedious; teams either ship nothing or copy a permissive template. AutoCSP inspects the page and proposes a policy using self + precise hashes and discovered origins.
+Hand-authoring robust CSPs is tedious. Teams either ship nothing, stay stuck in report-only forever, or copy permissive templates. AutoCSP automates discovery and presents a dual-policy (Baseline vs Strict) workflow so you can iterate toward maximal protection with clear diffs and quantified risk.
 
-## Features
-- Baseline & Strict policies generated side-by-side
-- Detect existing CSP & show diffs vs both modes
-- Hash all inline scripts & styles (SHA-256)
-- Baseline hardening: `object-src 'none'; frame-ancestors 'none'; base-uri 'self'; upgrade-insecure-requests`
-- Strict mode automatically removes external script/style origins (self + hashes only)
-- Diff: existing vs each mode AND baseline vs strict
+## Feature Highlights
+Core
+- Dual Baseline & Strict policy generation (strict = self + hashes for script/style)
+- Detection & diff against any existing CSP
+- Inline script & style SHA-256 hashing
+- Opinionated hardening: `object-src 'none'; frame-ancestors 'none'; base-uri 'self'; upgrade-insecure-requests`
+
+Discovery
+- Static HTML + attribute / tag scanning
+- (Optional) Runtime resource capture via Playwright (dynamic scripts, injected tags)
+- Multi-page crawl (BFS) with configurable depth to union resources
+
+Analytics & Insight
+- Directive-by-directive stats (counts, origin breakdown, hash ratios)
+- Risk scoring heuristics (level + issues list) for each policy mode
+- Risk deltas (Baseline → Strict) visualization
+- Per-directive diff (added/removed sources between modes)
+- Hide/filter directives in the UI
+- Hash presence + external origin ratios
+
+Exports & Integration
+- Copyable headers & diffs
+- Multi-environment deployment snippets: Helmet (Express), nginx, Apache, Cloudflare, HTML meta tag
+- JSON & CSV export (directive metrics)
+- Policy selection for snippet generation (choose baseline or strict)
+- LocalStorage persistence of last scan + UI state
+
+Other
 - Additional security headers suggestions (Referrer-Policy, Permissions-Policy)
-- Copy buttons for active/baseline/strict/diff/headers
-- JSON API & CLI output
-- (Experimental) Runtime discovery flag (`--runtime` / `runtime=true`) to execute page with Playwright and include dynamically injected resources
+- Graceful runtime fallback if Playwright isn’t installed
+- About page & lightweight theming
 
-## Local Dev (Web UI + CLI)
-Install deps then start the Next.js dev server (web UI at http://localhost:3000):
+## Quick Start (Web UI)
 ```bash
 npm install
 npm run dev
+# Open http://localhost:3000
 ```
+Enter a target URL, optionally enable Strict, Runtime, and choose a Crawl Depth (e.g. 2) to aggregate subpages. Explore diffs, analytics panels, risk scores, and export snippets.
 
-Open the browser form and enter a URL. Toggle Strict to see tightened policy. Copy buttons let you grab any variant. Runtime checkbox (coming online) will attempt dynamic capture when Playwright is available.
-
-CLI still works (direct TypeScript):
+## CLI Usage
+The repository ships with a CLI (experimental).
 ```bash
-npm run dev:cli -- https://example.com --strict --json
+npx ts-node src/cli.ts <url> [--strict] [--runtime] [--depth <n>] [--json]
 ```
+Flags:
+- `--strict`  Generate strict variant (self + hashes only for script/style)
+- `--runtime` Attempt dynamic discovery via Playwright (if installed)
+- `--depth`   Crawl depth (default 0 = single page)
+- `--json`    Output structured JSON (baseline + strict + diffs)
 
-### CLI Usage (after build or via npx)
-```bash
-autocsp <url> [--strict] [--runtime] [--json]
-```
+## API Endpoint
+`GET /api/csp?url=<target>&strict=<bool>&runtime=<bool>&depth=<n>`
 
-## Example Output
-```
-Proposed Content-Security-Policy:
+### Query Parameters
+| Param   | Type | Default | Description |
+|---------|------|---------|-------------|
+| `url`   | string | (required) | Target page to analyze |
+| `strict`| boolean | false | If true, active policy = strict variant |
+| `runtime` | boolean | false | Enable Playwright runtime capture (falls back if unavailable) |
+| `depth` | number | 0 | Crawl depth (0 = just the page) |
 
-default-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; script-src 'self' https://cdn.example.com 'sha256-AbCd...'; style-src 'self' 'sha256-XyZ...'; img-src 'self' data: https://img.cdn.com; connect-src 'self'; upgrade-insecure-requests
-```
-
-## Deploy on Vercel
-1. Create a new Vercel project pointing at this repo.
-2. Build Command: `npm run build`.
-3. The site UI will be served (Next.js) and the API route is `/api/csp`.
-
-You can still call the API directly or use the form UI.
-
-### Example Request
-```bash
-curl "https://<your-vercel-domain>/api/csp?url=https://example.com"
-```
-Add `&strict=true` for strict hashing mode. Add `&runtime=true` to attempt dynamic resource discovery (requires Playwright in the deployment environment; falls back silently if absent).
-
-### Response Shape (abridged)
+### Response (abridged)
 ```json
 {
 	"input": "https://example.com",
 	"finalUrl": "https://www.example.com/",
 	"status": 200,
 	"existing": "default-src 'self'",
-	"baseline": { "policy": "default-src 'self'; ...", "diffExisting": {"added":[],"removed":[]}, "notes": [] },
-	"strict": { "policy": "default-src 'self'; ...", "diffExisting": {"added":["script-src 'sha256-...'"]}, "notes": ["Strict mode: external script/style origins removed; only self + hashes allowed."] },
+	"baseline": {
+		"policy": "default-src 'self'; ...",
+		"diffExisting": { "added": [], "removed": [] },
+		"risk": { "score": 38, "level": "medium", "issues": ["Wildcard * in img-src"] },
+		"summaries": { "script-src": { "hashes": 5, "origins": 2, "externalOrigins": ["https://cdn.example"], "hashRatio": 0.71 } }
+	},
+	"strict": {
+		"policy": "default-src 'self'; ...",
+		"risk": { "score": 12, "level": "low", "issues": [] }
+	},
 	"diffModes": { "added": ["script-src 'sha256-...'"], "removed": ["script-src https://cdn.example"] },
-	"headers": { "Referrer-Policy": "strict-origin-when-cross-origin", "Permissions-Policy": "accelerometer=(), ..." },
-	"policy": "default-src 'self'; ...", // active (depends on strict param)
-	"activeMode": "baseline"
+	"runtimeStatus": "disabled | captured | unavailable",
+	"crawl": { "depth": 1, "pages": 3 },
+	"snippets": { "helmet": "helmet({contentSecurityPolicy: ...})", "nginx": "add_header Content-Security-Policy ..." },
+	"headers": { "Referrer-Policy": "strict-origin-when-cross-origin" },
+	"activeMode": "baseline",
+	"policy": "default-src 'self'; ..."
 }
 ```
 
-### Caching
-Responses are cached at the edge for 10 minutes (`s-maxage=600`). Re-run after changes to update.
+## Example Policy Output
+```
+default-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; script-src 'self' https://cdn.example.com 'sha256-AbCd...'; style-src 'self' 'sha256-XyZ...'; img-src 'self' data: https://img.cdn.com; connect-src 'self'; upgrade-insecure-requests
+```
 
-## Roadmap
-- CSP report ingestion + violation analytics (report-to / reporting endpoint)
-- Nonce option & mixed hash+nonce strategies
-- Progressive tightening assistant (remove unused origins iteratively)
-- Export as Helm values / Terraform snippet / nginx & Apache config
-- GitHub Action comment bot (PR diff recommending tighter CSP)
-- Permissions-Policy linter (detect overly broad directives)
-- Service Worker script handling & subresource integrity synergy
+## Deployment (Vercel)
+1. Import this repo into Vercel.
+2. Build Command: `npm run build`
+3. Output: Next.js App Router site + `/api/csp` endpoint.
+
+### Example Curl
+```bash
+curl "https://<your-vercel-domain>/api/csp?url=https://example.com&strict=true&depth=1"
+```
+
+## Architecture Overview
+- `src/fetch.ts` / `src/collect.ts` static HTML & tag scanning
+- `src/runtime.ts` optional Playwright dynamic discovery (dynamic import)
+- `src/crawl.ts` BFS crawl union of resource references by depth
+- `src/builder.ts` directive assembly + strict tightening + existing diff
+- `src/risk.ts` heuristic scoring / issues
+- `src/snippets.ts` snippet generation for multiple environments
+- `app/api/csp/route.ts` orchestrates request → result JSON
+- `app/page.tsx` UI, state persistence, analytics panels & exports
+
+## Risk Scoring (Heuristic)
+Lower is better. Points are added for patterns like wildcards, broad `default-src`, external inline reliance, missing hardening directives, etc. Future versions may allow tuning weights.
+
+## CSV / JSON Export
+UI buttons let you download directive metrics for offline analysis or diffing in spreadsheets / scripts.
+
+## Limitations / Notes
+- Runtime mode depends on Playwright; not bundled by default to keep install light.
+- Crawl depth > 2 can increase latency notably.
+- Hashing large inline blocks has diminishing returns vs moving code to external files.
+- Use strict mode progressively—verify no functional regressions before enforcing.
+
+## Roadmap (Next)
+- CSP report ingestion & adaptive tightening assistant
+- Nonce + hybrid hash/nonce strategies
+- Permission-Policy linter & recommendations
+- SRI synergy & asset fingerprint diffusion
+- GitHub Action PR reviewer (CSP suggestions)
+
+## Contributing
+Issues & ideas welcome. Open a discussion or PR—this is an early preview.
 
 ## License
 MIT
+
+## Acknowledgements
+Built by Habbi Web Design. Feedback appreciated.
