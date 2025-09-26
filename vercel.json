@@ -1,11 +1,10 @@
 {
   "version": 2,
   "functions": {
-    "api/*.ts": {
-      "runtime": "nodejs20.x"
+    "api/**": {
+      "runtime": "nodejs18.x"
     }
   },
-  "routes": [
-    { "src": "/api/csp", "dest": "/api/csp.ts" }
-  ]
+  "ignoredCommand": "echo Using Next.js default build",
+  "framework": "nextjs"
 }
